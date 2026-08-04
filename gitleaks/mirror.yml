@@ -148,7 +148,7 @@ versions:
   # resolves all declared platforms; none is asset-less.
   min: "8.29.1"
   new_per_run: 5
-  poll_interval: "27 */6 * * *"
+  poll_interval: "16 4-23/6 * * *"
 
 tests:
   # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
