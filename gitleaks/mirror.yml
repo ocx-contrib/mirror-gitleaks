@@ -99,10 +99,10 @@ assets:
   linux/arm64:
     - "^gitleaks_.*_linux_arm64\\.tar\\.gz$"
   # ── Pass 2 (darwin) ────────────────────────────────────────────────────────
-  # darwin/amd64:
-  #   - "^gitleaks_.*_darwin_x64\\.tar\\.gz$"
-  # darwin/arm64:
-  #   - "^gitleaks_.*_darwin_arm64\\.tar\\.gz$"
+  darwin/amd64:
+    - "^gitleaks_.*_darwin_x64\\.tar\\.gz$"
+  darwin/arm64:
+    - "^gitleaks_.*_darwin_arm64\\.tar\\.gz$"
   # ── Pass 3 (windows) ───────────────────────────────────────────────────────
   # windows/amd64:
   #   - "^gitleaks_.*_windows_x64\\.zip$"
