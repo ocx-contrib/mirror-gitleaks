@@ -107,9 +107,9 @@ platforms:
     runner: macos-14
     shell: bash
   # ── Pass 3 (windows) ───────────────────────────────────────────────────────
-  # windows/amd64:
-  #   runner: windows-latest
-  #   shell: pwsh
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
   #
   # windows/arm64 is DELIBERATELY ABSENT, not staged. Upstream flipped Windows
   # ARM from an `armv6` + `armv7` pair to a single `arm64` asset exactly at

@@ -104,8 +104,8 @@ assets:
   darwin/arm64:
     - "^gitleaks_.*_darwin_arm64\\.tar\\.gz$"
   # ── Pass 3 (windows) ───────────────────────────────────────────────────────
-  # windows/amd64:
-  #   - "^gitleaks_.*_windows_x64\\.zip$"
+  windows/amd64:
+    - "^gitleaks_.*_windows_x64\\.zip$"
   #
   # ── Blocked on a second upstream release, NOT on a rollout pass ────────────
   # windows/arm64:
