@@ -49,17 +49,6 @@ Custom rules, allowlists and per-repo exclusions go in a `.gitleaks.toml`
 (`--config`, `GITLEAKS_CONFIG`, or `<target>/.gitleaks.toml`), and a
 `.gitleaksignore` file suppresses known findings by fingerprint.
 
-## Install with ocx
-
-```sh
-ocx install ocx.sh/gitleaks/gitleaks
-```
-
-```sh
-# or pin a specific version
-ocx install ocx.sh/gitleaks/gitleaks:8.30.1
-```
-
 ## Links
 
 - [gitleaks on GitHub](https://github.com/gitleaks/gitleaks)
