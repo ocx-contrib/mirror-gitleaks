@@ -1,0 +1,179 @@
+# ⚠ `extends:` is a SHALLOW merge of TOP-LEVEL KEYS. Setting a key here
+# REPLACES the base's block outright — there is no per-key merge. `platforms:`
+# is deliberately NOT restated below: it carries the container legs that make
+# this spec's bare Linux keys honest, and restating it to tweak one runner
+# would drop them all without reddening anything.
+extends: ../mirror-base.yml
+
+name: gitleaks
+
+# Logical index package `gitleaks/gitleaks` at the physical path
+# `ghcr.io/ocx-contrib/gitleaks/gitleaks` — slash segments, never
+# hyphen-flattened. Two segments always; the GitHub org IS the project's own
+# brand, so the org names the namespace and the tool names the package. The
+# first segment must be this repo's own GitHub owner: GITHUB_TOKEN only
+# authorises packages owned by the repo the workflow runs in.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/gitleaks/gitleaks
+
+source:
+  type: github_release
+  owner: gitleaks
+  repo: gitleaks
+  # gitleaks tags carry a "v" prefix (e.g. "v8.30.1"); the captured version does
+  # not. Verified against every tag back to v8.23.3 — the scheme has never
+  # varied, and the anchored `$` keeps any future suffixed tag out.
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# gitleaks is Go, but "Go" is not the verdict — a cgo-enabled Go build links
+# libc dynamically. Measured on BOTH declared Linux arches at BOTH ends of the
+# mirrored range (8.29.1 and 8.30.1), because a toolchain can change
+# mid-series:
+#
+#   $ file gitleaks_8.30.1_linux_x64/gitleaks
+#   ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, stripped
+#   $ readelf -l … | grep -c INTERP  → 0
+#   $ readelf -d … | grep NEEDED     → (none)
+#
+#   $ file gitleaks_8.30.1_linux_arm64/gitleaks
+#   ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), statically linked, stripped
+#   $ readelf -l … | grep -c INTERP  → 0
+#   $ readelf -d … | grep NEEDED     → (none)
+#
+#   $ file gitleaks_8.29.1_linux_x64/gitleaks
+#   ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, stripped
+#   $ readelf -l … | grep -c INTERP  → 0
+#   $ readelf -d … | grep NEEDED     → (none)
+#
+#   $ file gitleaks_8.29.1_linux_arm64/gitleaks
+#   ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), statically linked, stripped
+#   $ readelf -l … | grep -c INTERP  → 0
+#   $ readelf -d … | grep NEEDED     → (none)
+#
+# No PT_INTERP and no DT_NEEDED on any of the four: the artifact requires
+# nothing of the host, so both Linux keys are BARE — no `+libc.*` suffix.
+# Container legs (ubuntu + alpine + fedora on both arches) live in
+# ../mirror-base.yml and are what turn that claim into evidence.
+#
+# ─── Scope + resolution (verified on EVERY in-range release) ────────────────
+#
+# The mirrored range is exactly v8.29.1, v8.30.0, v8.30.1 — three releases.
+# Each pattern below was matched against each release's full asset list:
+# EXACTLY ONE match, every time, both ways. A pattern matching zero is silently
+# skipped rather than an error, which would yield a green run with a missing
+# platform. Every asset name also embeds the version of the tag that carries it
+# (`gitleaks_8.30.1_*` under `v8.30.1`), so no release re-ships a previous
+# version's binaries under a new tag.
+#
+# ⚠ ARCH TOKENS ARE `x64` AND `x32`, NOT `amd64`/`386` — and `x32` here means
+# 32-bit x86, NOT the x86-64 x32 ABI. Every pattern is anchored at both ends so
+# an `_x64` pattern can never reach `_x32`, `_arm64`, `_armv6` or `_armv7`.
+#
+# Upstream also publishes, and this mirror deliberately does not carry:
+#   gitleaks_<V>_linux_x32.tar.gz      — ocx has no linux/386 Architecture
+#   gitleaks_<V>_linux_armv6.tar.gz    — ocx has no 32-bit arm Architecture
+#   gitleaks_<V>_linux_armv7.tar.gz    — ocx has no 32-bit arm Architecture
+#   gitleaks_<V>_windows_x32.zip       — ocx has no windows/386 Architecture
+#   gitleaks_<V>_windows_armv6.zip     — ocx has no 32-bit arm Architecture
+#   gitleaks_<V>_windows_armv7.zip     — ocx has no 32-bit arm Architecture
+#   gitleaks_<V>_checksums.txt         — sidecar
+#
+# ⚠ windows/arm64 IS EXCLUDED ON PURPOSE. Upstream flipped Windows ARM from the
+# `armv6` + `armv7` pair to a single `arm64` asset exactly at v8.30.1:
+#   v8.29.1 → windows_armv6.zip, windows_armv7.zip   (no arm64)
+#   v8.30.0 → windows_armv6.zip, windows_armv7.zip   (no arm64)
+#   v8.30.1 → windows_arm64.zip                      (no armv6/armv7)
+# So `^gitleaks_.*_windows_arm64\.zip$` 0-matches two of the three in-range
+# releases, and a declared-but-unmatched platform does not red — it boots a
+# real windows-11-arm runner and reports SUCCESS having tested nothing. Only
+# ONE recent release spans the new shape, so `versions.min` is NOT lifted to
+# 8.30.1 either (that would reduce the range to a single version). The key is
+# pre-written COMMENTED below and is uncommented, together with its
+# `platforms:` entry in ../mirror-base.yml, once a second release carries it.
+assets:
+  linux/amd64:
+    - "^gitleaks_.*_linux_x64\\.tar\\.gz$"
+  linux/arm64:
+    - "^gitleaks_.*_linux_arm64\\.tar\\.gz$"
+  # ── Pass 2 (darwin) ────────────────────────────────────────────────────────
+  # darwin/amd64:
+  #   - "^gitleaks_.*_darwin_x64\\.tar\\.gz$"
+  # darwin/arm64:
+  #   - "^gitleaks_.*_darwin_arm64\\.tar\\.gz$"
+  # ── Pass 3 (windows) ───────────────────────────────────────────────────────
+  # windows/amd64:
+  #   - "^gitleaks_.*_windows_x64\\.zip$"
+  #
+  # ── Blocked on a second upstream release, NOT on a rollout pass ────────────
+  # windows/arm64:
+  #   - "^gitleaks_.*_windows_arm64\\.zip$"
+
+# Every archive — tarball and zip alike — is FLAT: gitleaks(.exe) sits at the
+# archive root beside LICENSE and README.md, with no wrapper directory.
+# Verified by `tar tzf` on 8.29.1 + 8.30.1 (linux x64/arm64, darwin arm64) and
+# `unzip -l` on 8.30.1 windows x64 — three entries, no directory members. So
+# strip_components 0 on every platform, the binary lands at the content root,
+# and one metadata.json (PATH = ${installPath}) serves every platform.
+asset_type:
+  type: archive
+  strip_components: 0
+
+# FORCED by the flat archive, not chosen. `bin_scan` only inspects an
+# interface-visible `${installPath}/<dir>` PATH entry, and this archive has no
+# subdirectory to point one at, so both `auto` and `verify` fail spec load at
+# exit 65:
+#
+#   bin_scan is enabled but metadata.json declares no interface-visible
+#   ${installPath}/<dir> PATH entry — the verification would inspect no file and
+#   pass green whatever the archive contains.
+#
+# The `binaries` list in metadata.json is therefore hand-maintained, exactly as
+# that error directs. It is short and stable: `gitleaks` (`gitleaks.exe` on
+# Windows) is the only mode-0755 entry in the archive; LICENSE and README.md
+# are 0644 data. Quoted so no YAML 1.1 reader folds the bare word into boolean
+# `false`.
+bin_scan: "off"
+
+metadata:
+  default: metadata.json
+
+catalog:
+  logo: logo.svg
+
+versions:
+  # 8.29.1 per the run's package binding. Every release from here to 8.30.1
+  # resolves all declared platforms; none is asset-less.
+  min: "8.29.1"
+  new_per_run: 5
+  poll_interval: "27 */6 * * *"
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
+  # `catalog.logo` above, which resolve against this spec's own directory.
+  #
+  # The smoke scans a DIRECTORY (`gitleaks dir`), deliberately not a git
+  # repository. `gitleaks git` shells out to `git log -p` and dies without it
+  # (`exec: "git": executable file not found in $PATH`, exit 1), and none of
+  # the three container images ships git — so the git verb would need a
+  # `containers[].setup:` line per leg. It is NOT used here on purpose: the
+  # bare Linux keys above claim the artifact requires NOTHING of the host, and
+  # the `dir` path is what verifies exactly that claim. Provisioning git into
+  # the legs would make them prove less. See ../mirror-base.yml for the
+  # per-image measurement.
+  - name: smoke
+    script: gitleaks/tests/smoke.star
+
+annotations:
+  # From the Phase 1.5 license gate:
+  #   $ gh api repos/gitleaks/gitleaks/license --jq '.license.spdx_id'
+  #   MIT
+  org.opencontainers.image.licenses: "MIT"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and the
+  # physical path are related by convention only.
+  package: gitleaks/gitleaks
+  fork: ocx-contrib/index

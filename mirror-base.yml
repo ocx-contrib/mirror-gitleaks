@@ -1,0 +1,125 @@
+# Shared base for every spec in this repository (gitleaks, the secret scanner).
+#
+# NOT a spec: it has no name/target/source and is never loaded on its own.
+# Everything a package owns — name, target, source, assets, asset_type,
+# bin_scan, metadata, catalog, tests, versions, announce, annotations — stays
+# in that package's own mirror.yml.
+#
+# ⚠️ `extends:` is a SHALLOW merge of top-level keys. A spec that sets a key
+# below replaces that block OUTRIGHT — there is no per-key merge. `platforms:`
+# is where this bites: it carries BOTH the runner matrix and the container
+# legs, so a child that restates it to tweak one runner silently drops every
+# `containers:` entry. Nothing reds — the legs simply stop existing, and every
+# os.features claim in that spec goes back to being merely asserted. Restate
+# `platforms:` IN FULL or not at all. gitleaks/mirror.yml deliberately does NOT
+# restate it, which removes that trap structurally.
+
+skip_prereleases: true
+cascade: true
+
+# New package; upstream versions are bare semver (`8.30.1`) carrying no `+build`
+# segment, so the fleet default applies with no exception. A cascade tag
+# (`latest`, `8`, `8.30`) re-points on every re-publish; without a build segment
+# the new manifest would reuse the bare version tag and orphan the prior digest
+# for registry GC, breaking any `@sha256:` pin in a consumer's ocx.lock.
+build_timestamp: date
+
+verify:
+  github_asset_digest: true
+
+concurrency:
+  # Assets are ~8 MB archives around a single ~21 MB static Go binary plus
+  # LICENSE and README.md.
+  max_downloads: 8
+  max_bundles: 4
+  max_pushes: 2
+  rate_limit_ms: 100
+  max_retries: 3
+  compression_threads: 0
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built. Upstream's Linux binaries are Go builds with cgo
+# disabled and were byte-measured on BOTH declared arches at BOTH ends of the
+# mirrored range (8.29.1 and 8.30.1): `statically linked`, zero PT_INTERP, zero
+# DT_NEEDED. The measurement transcript is recorded above gitleaks/mirror.yml's
+# `assets:`.
+#
+# So both Linux keys are BARE. `+libc.glibc` or `+libc.musl` would be a false
+# requirement that hid the package from hosts it in fact runs on.
+#
+# A bare key claims universality, so it must prove it: ubuntu (glibc) + alpine
+# (musl) + fedora (a different glibc vintage). The ALPINE LEG IS THE PROOF —
+# drop it and the universal claim is merely asserted.
+#
+# A future package here whose libc measurement differs must restate this whole
+# block in its own spec — see the shallow-merge warning at the top.
+#
+# ─── NO `containers[].setup:` — deliberate, and measured ────────────────────
+#
+# gitleaks DOES have a hard runtime dependency on `git`, but only on its
+# repository-scanning verb, and none of these three images ships git:
+#
+#   $ docker run --rm -v …:/gl:ro alpine:3.20 sh -c '/gl/gitleaks git .'
+#   FTL could not create Git log cmd  error="exec: \"git\": executable file
+#                                            not found in $PATH"   → exit 1
+#
+# The smoke test scans a DIRECTORY (`gitleaks dir`), which shells out to
+# nothing, so no leg needs provisioning. Measured on the real bundle in all
+# three stock images — git ABSENT in every one:
+#
+#   ubuntu:24.04 → version 8.30.1, dirty exit 1 / 1 finding, clean exit 0 / []
+#   alpine:3.20  → version 8.30.1, dirty exit 1 / 1 finding, clean exit 0 / []
+#   fedora:40    → version 8.30.1, dirty exit 1 / 1 finding, clean exit 0 / []
+#
+# Adding `setup: [apk add git]` &c. would make these legs prove LESS: the point
+# of the bare `os.features` key is that the artifact requires nothing of the
+# host, and the `dir` path exercised here is exactly that claim. `gitleaks git`
+# needing git is a consumer-side fact, recorded in gitleaks/CATALOG.md, with no
+# declarable home in the spec (`os.features` carries libc only).
+platforms:
+  linux/amd64:
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  linux/arm64:
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  # ── Pass 2 (darwin) ────────────────────────────────────────────────────────
+  # Kept commented in lockstep with the matching `assets:` keys in
+  # gitleaks/mirror.yml. A declared platform with no resolvable asset does not
+  # red — it boots a real runner and reports SUCCESS having tested nothing —
+  # so the platform key and its asset regex are uncommented in the SAME pass.
+  # darwin/amd64:
+  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+  #   runner: macos-14
+  #   prefix: ["arch", "-x86_64"]
+  # darwin/arm64:
+  #   runner: macos-14
+  #   shell: bash
+  # ── Pass 3 (windows) ───────────────────────────────────────────────────────
+  # windows/amd64:
+  #   runner: windows-latest
+  #   shell: pwsh
+  #
+  # windows/arm64 is DELIBERATELY ABSENT, not staged. Upstream flipped Windows
+  # ARM from an `armv6` + `armv7` pair to a single `arm64` asset exactly at
+  # v8.30.1, so `gitleaks_<V>_windows_arm64.zip` exists for 8.30.1 ONLY and
+  # 0-matches 8.29.1 and 8.30.0 — see the exclusion note in gitleaks/mirror.yml.
+  #
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures
